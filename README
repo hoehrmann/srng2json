@@ -1,0 +1,72 @@
+I made an ad-hoc tool that turns a RELAX NG schema in simply syntax
+into a parser table for efficient (and so far approximate) validation.
+The source code for the tool as well as a demonstration using the XHTML
+1.0 Transitional schema generated through trang and rng2srng is at:
+
+  http://www.websitedev.de/temp/xhtml1-transitional-validator.html.gz
+
+The tool largely ignores data types, fixed values, lists, and name
+classes (though infrastructure for name classes is there). The tool
+generates a JSON table that allows running the validation process like
+
+It is based on http://www.thaiopensource.com/relaxng/derivative.html
+with one important difference in that there is no After pattern. In-
+stead it simulates, for a given qualified name, the union of all
+matching <define>s and notes where in the simulation process the
+elements underneath become nullable. Those accepting states are then
+used in the transition table of the parent, so validation becomes
+something like:
+
+  state = automaton[state][attribute1];
+  state = automaton[state][attribute2];
+  ...
+  childstate = recursive(child1);
+  state = automaton[state][childstate];
+
+  childstate = recursive(child2);
+  state = automaton[state][childstate];
+  ...
+
+Obviously in order to keep the validation process this simple you'd
+have to turn data types and so on into similar DFAs, but that would 
+make things quickly become weird and complicated and slow, especially
+in inefficient machine code like JavaScript, and there is very little
+tool support for that. Besides, grammars usually don't come with much
+beyond a couple of fixed keyword and maybe some xsd:int somewhere.
+
+Infrastructure for name classes is there (I regard AnyName, NsName,
+and a new LnName construct as patterns and have patterns for comple-
+ment and intersection, and simply decide membership by computing the
+derivatives with respect to namespace names and local names) but it's
+obviously not easy to lookup unknown names in a static table, so the
+support for name classes for elements does little, and support for
+name classes for attributes is absent.
+
+It might be possible to simply have some "##other" names in the table
+to support unknown names, but I haven't thought through that yet for
+elements, and for attributes this might make things kinda messy.
+
+The JavaScript demo as it is churns through a couple of megabyte per
+second on commodity hardware, that's probably somewhere around the
+edge of "tolerable" for something like a real-time browser addon.
+
+There is also no error recovery of any kind, although that would be
+easy to add, if you go by James Clark's work you could similarily 
+pre-compute recovery states, and things like ignoring failures due
+to attributes could be done directly in the validator without changes
+in the parser tables. Giving better error messages by analyzing the
+graph is also an option.
+
+This builds up on earlier work I've done, for instance, once I turned
+DTDs into tables with regular expressions and let browser's regular ex-
+pression engines do the matching, attribute values in the obvious way,
+and content models by turning lists of children into lists separated by
+a separator:
+
+  http://lists.w3.org/Archives/Public/www-validator/2006Nov/0000.html
+
+Anyway, I mostly wanted to invest a couple of hours to support the point
+that validation is really simple with the right tools, and this might be
+a meaningful contribution to that end. The backend-tool is written in C#
+and available under the GPLv2+, and available from the page noted above,
+or from here.
